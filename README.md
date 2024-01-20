@@ -35,7 +35,7 @@ SUBSYSTEMS=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="5512", MODE="0666
 
 ...then you can run `ch341tool` without root privileges.
 
-#### Usage
+### Usage
 
 `ch341tool [options] commands...`
 

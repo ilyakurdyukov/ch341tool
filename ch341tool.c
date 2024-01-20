@@ -453,11 +453,12 @@ static void spi_erase(usbio_t *io, uint32_t addr, uint32_t len,
 	if ((addr + len) >> 24 && !is32bit)
 		ERR_EXIT("need 32-bit erase\n");
 
-	buf[0] = 0x06; // Write Enable
-	ch341_spi_stream(io, buf, buf, 1);
-
 	while (len) {
 		unsigned pos = 1, n;
+
+		buf[0] = 0x06; // Write Enable
+		ch341_spi_stream(io, buf, buf, 1);
+
 		buf[0] = cmd;
 		if (is32bit)
 			buf[pos++] = addr >> 24;
@@ -465,11 +466,9 @@ static void spi_erase(usbio_t *io, uint32_t addr, uint32_t len,
 		buf[pos++] = addr >> 8;
 		buf[pos++] = addr;
 		ch341_spi_stream(io, buf, buf, pos);
-		n = step;
-		addr += n; len -= n;
+		wait_write(io, 1 * 1000);
+		n = step; addr += n; len -= n;
 	}
-
-	wait_write(io, 10 * 1000);
 
 	buf[0] = 0x04; // Write Disable
 	ch341_spi_stream(io, buf, buf, 1);
