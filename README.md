@@ -51,3 +51,5 @@ SUBSYSTEMS=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="5512", MODE="0666
 
 - writing: `write addr size filename file_offset`, use `page_size N` command (before the write command) to set the page size (default 256).
 
+- Release Deep Power-down / Read Electronic Signature: `rdp_res`, could help wake up some chips.
+

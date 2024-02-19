@@ -324,7 +324,7 @@ static inline unsigned swap_bits(unsigned a) {
 	return a;
 }
 
-static void ch341_spi_stream(usbio_t *io, uint8_t *src, uint8_t *out, unsigned len) {
+static void ch341_spi_stream(usbio_t *io, const uint8_t *src, uint8_t *out, unsigned len) {
 	io->buf[0] = CH341A_CMD_UIO_STREAM;
 	io->buf[1] = CH341A_CMD_UIO_STM_OUT | 0x36;
 	io->buf[2] = CH341A_CMD_UIO_STM_DIR | 0x3F;
@@ -354,6 +354,49 @@ static void ch341_spi_stream(usbio_t *io, uint8_t *src, uint8_t *out, unsigned l
 	io->buf[2] = CH341A_CMD_UIO_STM_END;
 	usb_send(io, NULL, 3);
 }
+
+#if 0
+// AsProgrammer style, found using USB capture. Is this more correct?
+static void ch341_spi_stream2(usbio_t *io, const uint8_t *src, uint8_t *out, unsigned len1, unsigned len2) {
+	int i, n;
+	io->buf[0] = CH341A_CMD_UIO_STREAM;
+	io->buf[1] = CH341A_CMD_UIO_STM_OUT | 0;
+	io->buf[2] = CH341A_CMD_UIO_STM_DIR | 0x29;
+	io->buf[3] = CH341A_CMD_UIO_STM_END;
+	usb_send(io, NULL, 4);
+
+	n = len1;
+	io->buf[0] = CH341A_CMD_SPI_STREAM;
+	for (i = 0; i < n; i++)
+		io->buf[1 + i] = swap_bits(*src++);
+
+	usb_send(io, NULL, n + 1);
+	if (usb_recv(io, n) != n)
+		ERR_EXIT("unexpected recv size\n");
+	for (i = 0; i < n; i++)
+		*out++ = swap_bits(io->buf[i]);
+
+	io->buf[0] = CH341A_CMD_UIO_STREAM;
+	io->buf[1] = CH341A_CMD_UIO_STM_OUT | 0x36;
+	io->buf[2] = CH341A_CMD_UIO_STM_DIR | 0x3f;
+	io->buf[3] = CH341A_CMD_UIO_STM_END;
+	memset(io->buf + 4, 0, 28);
+	io->buf[32] = CH341A_CMD_SPI_STREAM;
+	n = len2;
+	for (i = 0; i < n; i++)
+		io->buf[33 + i] = swap_bits(*src++);
+	usb_send(io, NULL, 33 + n);
+	if (usb_recv(io, n) != n)
+		ERR_EXIT("unexpected recv size\n");
+	for (i = 0; i < n; i++)
+		*out++ = swap_bits(io->buf[i]);
+
+	io->buf[0] = CH341A_CMD_UIO_STREAM;
+	io->buf[1] = CH341A_CMD_UIO_STM_OUT | 0x37;
+	io->buf[2] = CH341A_CMD_UIO_STM_END;
+	usb_send(io, NULL, 3);
+}
+#endif
 
 #define MAX_BLK_SIZE 0x1f00
 
@@ -570,7 +613,14 @@ int main(int argc, char **argv) {
 		} else if (!strcmp(argv[1], "read_id")) {
 			uint8_t buf[4] = { 0x9f };
 			ch341_spi_stream(io, buf, buf, sizeof(buf));
-			DBG_LOG("CHIP_ID: %02x %02x %02x\n", buf[1], buf[2], buf[3]);
+			DBG_LOG("CHIP_ID (0x9F): %02x %02x %02x\n", buf[1], buf[2], buf[3]);
+			argc -= 1; argv += 1;
+
+		} else if (!strcmp(argv[1], "rdp_res")) {
+			// Release Deep Power-down / Read Electronic Signature
+			uint8_t buf[5] = { 0xab, 0, 0, 0 };
+			ch341_spi_stream(io, buf, buf, sizeof(buf));
+			DBG_LOG("CHIP_ID (0xAB): %02x\n", buf[4]);
 			argc -= 1; argv += 1;
 
 		} else if (!strcmp(argv[1], "read")) {
