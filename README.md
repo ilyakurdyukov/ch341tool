@@ -53,3 +53,11 @@ SUBSYSTEMS=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="5512", MODE="0666
 
 - Release Deep Power-down / Read Electronic Signature: `rdp_res`, could help wake up some chips.
 
+#### Commands (SD cards)
+
+These extra commands are for SD cards, which can be connected to the CH341 using a little board with an SD card slot.
+
+- `sd_init`: initialize the SD card.
+
+- `sd_info`: print info about the SD card.
+

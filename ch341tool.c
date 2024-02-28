@@ -204,13 +204,13 @@ static void usbio_free(usbio_t* io) {
 }
 
 #define WRITE16_BE(p, a) do { \
-  uint32_t __tmp = a; \
+	uint32_t __tmp = a; \
 	((uint8_t*)(p))[0] = (uint8_t)(__tmp >> 8); \
 	((uint8_t*)(p))[1] = (uint8_t)(a); \
 } while (0)
 
 #define WRITE32_LE(p, a) do { \
-  uint32_t __tmp = a; \
+	uint32_t __tmp = a; \
 	((uint8_t*)(p))[0] = (uint8_t)__tmp; \
 	((uint8_t*)(p))[1] = (uint8_t)(__tmp >> 8); \
 	((uint8_t*)(p))[2] = (uint8_t)(__tmp >> 16); \
@@ -327,7 +327,7 @@ static inline unsigned swap_bits(unsigned a) {
 static void ch341_spi_stream(usbio_t *io, const uint8_t *src, uint8_t *out, unsigned len) {
 	io->buf[0] = CH341A_CMD_UIO_STREAM;
 	io->buf[1] = CH341A_CMD_UIO_STM_OUT | 0x36;
-	io->buf[2] = CH341A_CMD_UIO_STM_DIR | 0x3F;
+	io->buf[2] = CH341A_CMD_UIO_STM_DIR | 0x3f;
 	io->buf[3] = CH341A_CMD_UIO_STM_END;
 	usb_send(io, NULL, 4);
 
@@ -339,7 +339,7 @@ static void ch341_spi_stream(usbio_t *io, const uint8_t *src, uint8_t *out, unsi
 
 		io->buf[0] = CH341A_CMD_SPI_STREAM;
 		for (i = 0; i < n; i++)
-			io->buf[1 + i] = swap_bits(*src++);
+			io->buf[1 + i] = src ? swap_bits(*src++) : 0xff;
 
 		usb_send(io, NULL, n + 1);
 		if (usb_recv(io, n) != n)
@@ -359,37 +359,41 @@ static void ch341_spi_stream(usbio_t *io, const uint8_t *src, uint8_t *out, unsi
 // AsProgrammer style, found using USB capture. Is this more correct?
 static void ch341_spi_stream2(usbio_t *io, const uint8_t *src, uint8_t *out, unsigned len1, unsigned len2) {
 	int i, n;
-	io->buf[0] = CH341A_CMD_UIO_STREAM;
-	io->buf[1] = CH341A_CMD_UIO_STM_OUT | 0;
-	io->buf[2] = CH341A_CMD_UIO_STM_DIR | 0x29;
-	io->buf[3] = CH341A_CMD_UIO_STM_END;
-	usb_send(io, NULL, 4);
+	if (len1) {
+		io->buf[0] = CH341A_CMD_UIO_STREAM;
+		io->buf[1] = CH341A_CMD_UIO_STM_OUT | 0;
+		io->buf[2] = CH341A_CMD_UIO_STM_DIR | 0x29; // 0b101001
+		io->buf[3] = CH341A_CMD_UIO_STM_END;
+		usb_send(io, NULL, 4);
 
-	n = len1;
-	io->buf[0] = CH341A_CMD_SPI_STREAM;
-	for (i = 0; i < n; i++)
-		io->buf[1 + i] = swap_bits(*src++);
+		n = len1;
+		io->buf[0] = CH341A_CMD_SPI_STREAM;
+		for (i = 0; i < n; i++)
+			io->buf[1 + i] = swap_bits(*src++);
 
-	usb_send(io, NULL, n + 1);
-	if (usb_recv(io, n) != n)
-		ERR_EXIT("unexpected recv size\n");
-	for (i = 0; i < n; i++)
-		*out++ = swap_bits(io->buf[i]);
+		usb_send(io, NULL, n + 1);
+		if (usb_recv(io, n) != n)
+			ERR_EXIT("unexpected recv size\n");
+		for (i = 0; i < n; i++)
+			*out++ = swap_bits(io->buf[i]);
+	}
 
-	io->buf[0] = CH341A_CMD_UIO_STREAM;
-	io->buf[1] = CH341A_CMD_UIO_STM_OUT | 0x36;
-	io->buf[2] = CH341A_CMD_UIO_STM_DIR | 0x3f;
-	io->buf[3] = CH341A_CMD_UIO_STM_END;
-	memset(io->buf + 4, 0, 28);
-	io->buf[32] = CH341A_CMD_SPI_STREAM;
-	n = len2;
-	for (i = 0; i < n; i++)
-		io->buf[33 + i] = swap_bits(*src++);
-	usb_send(io, NULL, 33 + n);
-	if (usb_recv(io, n) != n)
-		ERR_EXIT("unexpected recv size\n");
-	for (i = 0; i < n; i++)
-		*out++ = swap_bits(io->buf[i]);
+	if (len2) {
+		io->buf[0] = CH341A_CMD_UIO_STREAM;
+		io->buf[1] = CH341A_CMD_UIO_STM_OUT | 0x36;
+		io->buf[2] = CH341A_CMD_UIO_STM_DIR | 0x3f;
+		io->buf[3] = CH341A_CMD_UIO_STM_END;
+		memset(io->buf + 4, 0, 28);
+		io->buf[32] = CH341A_CMD_SPI_STREAM;
+		n = len2;
+		for (i = 0; i < n; i++)
+			io->buf[33 + i] = swap_bits(*src++);
+		usb_send(io, NULL, 33 + n);
+		if (usb_recv(io, n) != n)
+			ERR_EXIT("unexpected recv size\n");
+		for (i = 0; i < n; i++)
+			*out++ = swap_bits(io->buf[i]);
+	}
 
 	io->buf[0] = CH341A_CMD_UIO_STREAM;
 	io->buf[1] = CH341A_CMD_UIO_STM_OUT | 0x37;
@@ -515,6 +519,81 @@ static void spi_erase(usbio_t *io, uint32_t addr, uint32_t len,
 
 	buf[0] = 0x04; // Write Disable
 	ch341_spi_stream(io, buf, buf, 1);
+}
+
+static void ch341_sd_wait(usbio_t *io) {
+	uint8_t buf[1]; int i;
+
+	for (i = 0; i < 1000; i++) {
+		ch341_spi_stream(io, NULL, buf, 1);
+		if (buf[0] == 0xff) break;
+		usleep(1 * 1000);
+	}
+	if (buf[0] != 0xff)
+		ERR_EXIT("sd_wait failed (ret = 0x%02x)\n", buf[0]);
+}
+
+static int sd_crc7(const uint8_t *s, unsigned n) {
+	unsigned j, crc = 0;
+	while (n--) {
+		crc ^= *s++;
+		for (j = 0; j < 8; j++) {
+			if (crc & 0x80) crc ^= 0x89;
+			crc <<= 1;
+		}
+	}
+	return crc | 1;
+}
+
+static int ch341_sd_cmd(usbio_t *io, unsigned cmd, unsigned arg) {
+	uint8_t buf[6]; unsigned n;
+
+	ch341_sd_wait(io);
+
+	buf[0] = cmd | 0x40;
+	buf[1] = arg >> 24;
+	buf[2] = arg >> 16;
+	buf[3] = arg >> 8;
+	buf[4] = arg;
+	buf[5] = sd_crc7(buf, 5);
+	// buf[5] = cmd == 0 ? 0x95 : cmd == 8 ? 0x87 : 0xff;
+
+	ch341_spi_stream(io, buf, buf, sizeof(buf));
+
+	for (n = 1000; n; n--) {
+		ch341_spi_stream(io, NULL, buf, 1);
+		if (!(buf[0] & 0x80)) break;
+		usleep(1 * 1000);
+	}
+	return buf[0];
+}
+
+static int ch341_sd_acmd(usbio_t *io, unsigned cmd, unsigned arg) {
+	ch341_sd_cmd(io, 55, 0); // APP_CMD
+	return ch341_sd_cmd(io, cmd, arg);
+}
+
+static void ch341_sd_reg(usbio_t *io, unsigned cmd, void *out, unsigned n) {
+	uint8_t buf[64 + 2];
+	int ret, i;
+
+	ret = ch341_sd_cmd(io, cmd, 0);
+	if (cmd == 13) { // SD_STATUS
+		ch341_spi_stream(io, NULL, buf, 1);
+		ret = ret << 8 | buf[0];
+	}
+	if (ret != 0)
+		ERR_EXIT("sd(CMD%u) failed (ret = 0x%02x)\n", cmd, ret);
+	for (i = 0; i < 1000; i++) {
+		ch341_spi_stream(io, NULL, buf, 1);
+		ret = buf[0];
+		if (ret != 0xff) break;
+		usleep(1 * 1000);
+	}
+	if (ret != 0xfe)
+		ERR_EXIT("sd(CMD%u) failed (ret = 0x%02x)\n", cmd, ret);
+	ch341_spi_stream(io, NULL, buf, n + 2);
+	memcpy(out, buf, n);
 }
 
 static uint64_t str_to_size(const char *str) {
@@ -700,6 +779,142 @@ int main(int argc, char **argv) {
 				ERR_EXIT("page_size must be a power of two\n");
 			page_size = n;
 			argc -= 2; argv += 2;
+
+		} else if (!strcmp(argv[1], "sd_init")) {
+			int ret, sd_ver = 0, i;
+			uint8_t buf[4];
+			ret = ch341_sd_cmd(io, 0, 0); // GO_IDLE_STATE
+			if (ret != 1) // 1 : idle state 
+				ERR_EXIT("sd(CMD0) failed (ret = 0x%02x)\n", ret);
+			ret = ch341_sd_cmd(io, 8, 0x1aa); // SEND_IF_COND
+			if (!(ret & 4)) { // 4 : illegal command
+				ch341_spi_stream(io, NULL, buf, 4);
+				if (buf[3] != 0xaa)
+					ERR_EXIT("sd(CMD8) failed\n");
+				sd_ver = 1;
+			}
+
+			i = 0;
+			do {
+				// SD_APP_OP_COND
+				ret = ch341_sd_acmd(io, 41, sd_ver << 30);
+				if (ret == 0) break;
+				usleep(1 * 1000);
+			} while (++i < 100);
+			if (ret != 0)
+				ERR_EXIT("sd(ACMD41) failed (ret = 0x%02x)\n", ret);
+
+			ret = ch341_sd_cmd(io, 58, 0); // READ_OCR
+			if (ret != 0)
+				ERR_EXIT("sd(CMD58) failed (ret = 0x%02x)\n", ret);
+			ch341_spi_stream(io, NULL, buf, 4);
+			if (io->verbose == 1) {
+				DBG_LOG("OCR: ");
+				for (i = 0; i < 4; i++)
+					DBG_LOG("%02x%s", buf[i], i < 3 ? " " : "\n");
+			}
+			// 31 : power up status
+			// 30 : Card Capacity Status (CCS)
+			if (buf[0] >> 6 == 3) {
+				sd_ver = 3;
+				DBG_LOG("SD V%u (UHS-%s)\n", sd_ver, "II" + !(buf[0] & 0x20));
+			} else {
+				DBG_LOG("SD V%u\n", sd_ver);
+			}
+			argc -= 1; argv += 1;
+
+		} else if (!strcmp(argv[1], "sd_info")) {
+			uint8_t buf[64]; char name[5];
+			unsigned csd_ver, read_bl_len;
+			unsigned c_size, c_size_mult;
+			int i, ret; uint32_t tmp;
+
+			ch341_sd_reg(io, 9, buf, 16); // SEND_CSD
+			if (io->verbose == 1) {
+				DBG_LOG("CSD: ");
+				for (i = 0; i < 16; i++)
+					DBG_LOG("%02x%s", buf[i], i < 15 ? " " : "\n");
+			}
+			csd_ver = buf[0] >> 6;
+			read_bl_len = buf[5] & 0xf;
+			if (csd_ver == 0) {
+				if ((read_bl_len - 9) >= 3) // valid : 9, 10, 11
+					ERR_EXIT("invalid READ_BL_LEN (%u)\n", read_bl_len);
+				c_size = buf[6] << 16 | buf[7] << 8 | buf[8];
+				c_size = c_size >> 6 & 0xfff;
+				c_size_mult = (buf[9] << 8 | buf[10]) >> 7 & 7;
+			} else if (csd_ver == 1 || csd_ver == 2) {
+				if (read_bl_len != 9)
+					ERR_EXIT("invalid READ_BL_LEN (%u)\n", read_bl_len);
+				c_size = buf[6] << 24 | buf[7] << 16 | buf[8] << 8 | buf[9];
+				c_size &= 0xfffffff;
+				if (csd_ver == 1) c_size &= 0x3fffff;
+				c_size_mult = 10;
+			} else
+				DBG_LOG("unknown CSD version (%u)\n", ret);
+
+			if (csd_ver < 3) {
+				unsigned long long sd_size = c_size + 1;
+				sd_size <<= c_size_mult + read_bl_len;
+				DBG_LOG("device size: %llu\n", sd_size);
+			}
+
+			ch341_sd_reg(io, 10, buf, 16); // SEND_CID
+			if (io->verbose == 1) {
+				DBG_LOG("CID: ");
+				for (i = 0; i < 16; i++)
+					DBG_LOG("%02x%s", buf[i], i < 15 ? " " : "\n");
+			}
+			tmp = buf[0];
+			DBG_LOG("Manufacturer ID: %u (0x%02x)\n", tmp, tmp);
+			tmp = buf[1] << 8 | buf[2];
+
+			for (i = 0; i < 2; i++) {
+				int a = buf[1 + i];
+				name[i] = a >= 0x20 && a < 0x7f ? a : '?';
+			}
+			DBG_LOG("OEM/Application ID: \"%.2s\" (%02x %02x)\n", name, buf[1], buf[2]);
+
+			for (i = 0; i < 5; i++) {
+				int a = buf[3 + i];
+				name[i] = a >= 0x20 && a < 0x7f ? a : '?';
+			}
+			DBG_LOG("name: \"%.5s\" (%02x %02x %02x %02x %02x)\n",
+					name, buf[3], buf[4], buf[5], buf[6], buf[7]);
+			tmp = buf[8];
+			DBG_LOG("revision: %u.%u\n", tmp >> 4, tmp & 15);
+			tmp = buf[9] << 24 | buf[10] << 16 | buf[11] << 8 | buf[12];
+			DBG_LOG("serial number: 0x%08x\n", tmp);
+			tmp = (buf[13] << 8 | buf[14]) & 0xfff;
+			DBG_LOG("manufacturing date: %u.%02u\n", (tmp >> 4) + 2000, tmp & 15);
+
+			ch341_sd_cmd(io, 55, 0); // APP_CMD
+			ch341_sd_reg(io, 13, buf, 64); // SD_STATUS
+			if (io->verbose == 1) {
+				DBG_LOG("SSR: ");
+				for (i = 0; i < 64; i++)
+					DBG_LOG("%02x%s", buf[i], i < 63 ? (i & 15) == 15 ? "\n     " : " " : "\n");
+			}
+			tmp = buf[8];
+			if (tmp < 5) {
+				if (tmp >= 4) tmp++;
+				DBG_LOG("speed class: %u\n", tmp * 2);
+			} else {
+				DBG_LOG("speed class: unknown (%u)\n", tmp);
+			}
+			tmp = buf[14] >> 4;
+			{
+				const char *grade = NULL;
+				switch (tmp) {
+				case 0: grade = "less than 10MB/sec"; break;
+				case 1: grade = "10MB/sec and above"; break;
+				case 3: grade = "30MB/sec and above"; break;
+				}
+				if (grade) DBG_LOG("UHS speed grade: %s\n", grade);
+				else DBG_LOG("UHS speed grade: unknown (%u)\n", tmp);
+			}
+			DBG_LOG("video speed class: %u\n", buf[15]);
+			argc -= 1; argv += 1;
 
 		} else if (!strcmp(argv[1], "timeout")) {
 			if (argc <= 2) ERR_EXIT("bad command\n");
