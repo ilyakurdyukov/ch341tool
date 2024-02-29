@@ -55,7 +55,7 @@ SUBSYSTEMS=="usb", ATTRS{idVendor}=="1a86", ATTRS{idProduct}=="5512", MODE="0666
 
 #### Commands (SD cards)
 
-These extra commands are for SD cards, which can be connected to the CH341 using a little board with an SD card slot.
+These extra commands are for SD cards, which can be connected to the CH341 using a little board with an SD card slot (often sold as modules for Arduino).
 
 - `sd_init`: initialize the SD card.
 

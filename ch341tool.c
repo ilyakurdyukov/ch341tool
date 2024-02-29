@@ -537,12 +537,31 @@ static int sd_crc7(const uint8_t *s, unsigned n) {
 	unsigned j, crc = 0;
 	while (n--) {
 		crc ^= *s++;
+#if 1 // should be faster than loop
+		// do 7 bits at a time
+		j = (crc ^ crc >> 4) & 0xfe;
+		crc = (crc << 7 ^ j ^ j << 3) & 0xfe;
+		// one more bit
+		j = crc >> 7;
+		crc = (crc ^ j ^ j << 3) << 1 & 0xfe;
+#else
 		for (j = 0; j < 8; j++) {
 			if (crc & 0x80) crc ^= 0x89;
 			crc <<= 1;
 		}
+#endif
 	}
 	return crc | 1;
+}
+
+static int sd_crc16(const uint8_t *s, unsigned n) {
+	unsigned t, crc = 0;
+	while (n--) {
+		t = crc >> 8 ^ *s++;
+		t ^= t >> 4;
+		crc = (crc << 8 ^ t ^ t << 5 ^ t << 12) & 0xffff;
+	}
+	return crc;
 }
 
 static int ch341_sd_cmd(usbio_t *io, unsigned cmd, unsigned arg) {
@@ -575,8 +594,10 @@ static int ch341_sd_acmd(usbio_t *io, unsigned cmd, unsigned arg) {
 
 static void ch341_sd_reg(usbio_t *io, unsigned cmd, void *out, unsigned n) {
 	uint8_t buf[64 + 2];
-	int ret, i;
+	int ret, i, crc;
 
+	if (cmd == 13) // SD_STATUS
+		ch341_sd_cmd(io, 55, 0); // APP_CMD
 	ret = ch341_sd_cmd(io, cmd, 0);
 	if (cmd == 13) { // SD_STATUS
 		ch341_spi_stream(io, NULL, buf, 1);
@@ -593,7 +614,17 @@ static void ch341_sd_reg(usbio_t *io, unsigned cmd, void *out, unsigned n) {
 	if (ret != 0xfe)
 		ERR_EXIT("sd(CMD%u) failed (ret = 0x%02x)\n", cmd, ret);
 	ch341_spi_stream(io, NULL, buf, n + 2);
+	crc = buf[n] << 8 | buf[n + 1];
+	if (crc != sd_crc16(buf, n))
+		ERR_EXIT("sd(CMD%u) bad checksum (crc = 0x%04x)\n", cmd, crc);
 	memcpy(out, buf, n);
+}
+
+static void sd_print_reg(const char *name, const uint8_t *buf, int n) {
+	int i;
+	DBG_LOG("%s: ", name);
+	for (i = 0; i < n; i++) DBG_LOG("%02x%s", buf[i],
+			i + 1 == n ? "\n" : (i + 1) & 15 ? " " : "\n     ");
 }
 
 static uint64_t str_to_size(const char *str) {
@@ -800,7 +831,7 @@ int main(int argc, char **argv) {
 				ret = ch341_sd_acmd(io, 41, sd_ver << 30);
 				if (ret == 0) break;
 				usleep(1 * 1000);
-			} while (++i < 100);
+			} while (++i < 1000);
 			if (ret != 0)
 				ERR_EXIT("sd(ACMD41) failed (ret = 0x%02x)\n", ret);
 
@@ -808,11 +839,7 @@ int main(int argc, char **argv) {
 			if (ret != 0)
 				ERR_EXIT("sd(CMD58) failed (ret = 0x%02x)\n", ret);
 			ch341_spi_stream(io, NULL, buf, 4);
-			if (io->verbose == 1) {
-				DBG_LOG("OCR: ");
-				for (i = 0; i < 4; i++)
-					DBG_LOG("%02x%s", buf[i], i < 3 ? " " : "\n");
-			}
+			if (io->verbose == 1) sd_print_reg("OCR", buf, 4);
 			// 31 : power up status
 			// 30 : Card Capacity Status (CCS)
 			if (buf[0] >> 6 == 3) {
@@ -828,13 +855,14 @@ int main(int argc, char **argv) {
 			unsigned csd_ver, read_bl_len;
 			unsigned c_size, c_size_mult;
 			int i, ret; uint32_t tmp;
+			static const char * const sd_au_size[16] = {
+					"not defined", "16 KB", "32 KB", "64 KB"
+					"128 KB", "256 KB", "512 KB", "1 MB",
+					"2 MB", "4 MB", "8 MB", "12 MB",
+					"16 MB", "24 MB", "32 MB", "64 MB" };
 
 			ch341_sd_reg(io, 9, buf, 16); // SEND_CSD
-			if (io->verbose == 1) {
-				DBG_LOG("CSD: ");
-				for (i = 0; i < 16; i++)
-					DBG_LOG("%02x%s", buf[i], i < 15 ? " " : "\n");
-			}
+			if (io->verbose == 1) sd_print_reg("CSD", buf, 16);
 			csd_ver = buf[0] >> 6;
 			read_bl_len = buf[5] & 0xf;
 			if (csd_ver == 0) {
@@ -860,11 +888,8 @@ int main(int argc, char **argv) {
 			}
 
 			ch341_sd_reg(io, 10, buf, 16); // SEND_CID
-			if (io->verbose == 1) {
-				DBG_LOG("CID: ");
-				for (i = 0; i < 16; i++)
-					DBG_LOG("%02x%s", buf[i], i < 15 ? " " : "\n");
-			}
+			if (io->verbose == 1) sd_print_reg("CID", buf, 16);
+
 			tmp = buf[0];
 			DBG_LOG("Manufacturer ID: %u (0x%02x)\n", tmp, tmp);
 			tmp = buf[1] << 8 | buf[2];
@@ -888,13 +913,9 @@ int main(int argc, char **argv) {
 			tmp = (buf[13] << 8 | buf[14]) & 0xfff;
 			DBG_LOG("manufacturing date: %u.%02u\n", (tmp >> 4) + 2000, tmp & 15);
 
-			ch341_sd_cmd(io, 55, 0); // APP_CMD
 			ch341_sd_reg(io, 13, buf, 64); // SD_STATUS
-			if (io->verbose == 1) {
-				DBG_LOG("SSR: ");
-				for (i = 0; i < 64; i++)
-					DBG_LOG("%02x%s", buf[i], i < 63 ? (i & 15) == 15 ? "\n     " : " " : "\n");
-			}
+			if (io->verbose == 1) sd_print_reg("SSR", buf, 64);
+
 			tmp = buf[8];
 			if (tmp < 5) {
 				if (tmp >= 4) tmp++;
@@ -902,6 +923,9 @@ int main(int argc, char **argv) {
 			} else {
 				DBG_LOG("speed class: unknown (%u)\n", tmp);
 			}
+			tmp = buf[10] >> 4;
+			DBG_LOG("AU size: %s\n", sd_au_size[tmp]);
+
 			tmp = buf[14] >> 4;
 			{
 				const char *grade = NULL;
@@ -913,7 +937,19 @@ int main(int argc, char **argv) {
 				if (grade) DBG_LOG("UHS speed grade: %s\n", grade);
 				else DBG_LOG("UHS speed grade: unknown (%u)\n", tmp);
 			}
+			tmp = buf[14] & 15;
+			DBG_LOG("UHS AU size: %s\n", sd_au_size[tmp]);
 			DBG_LOG("video speed class: %u\n", buf[15]);
+
+			DBG_LOG("VSC AU size: ");
+			tmp = (buf[16] << 8 | buf[17]) & 0x3ff;
+			if (!tmp) DBG_LOG("not supported\n");
+			else DBG_LOG("%u MB\n", tmp);
+
+			tmp = buf[21] & 15;
+			DBG_LOG("application performance class: ");
+			if (!tmp) DBG_LOG("not supported\n");
+			else DBG_LOG(tmp < 3 ? "A%u\n" : "unknown (%u)", tmp);
 			argc -= 1; argv += 1;
 
 		} else if (!strcmp(argv[1], "timeout")) {
