@@ -596,7 +596,7 @@ static void ch341_sd_reg(usbio_t *io, unsigned cmd, void *out, unsigned n) {
 	uint8_t buf[64 + 2];
 	int ret, i, crc;
 
-	if (cmd == 13) // SD_STATUS
+	if (cmd == 13 || cmd == 51) // SD_STATUS or SEND_SCR
 		ch341_sd_cmd(io, 55, 0); // APP_CMD
 	ret = ch341_sd_cmd(io, cmd, 0);
 	if (cmd == 13) { // SD_STATUS
@@ -860,6 +860,29 @@ int main(int argc, char **argv) {
 					"128 KB", "256 KB", "512 KB", "1 MB",
 					"2 MB", "4 MB", "8 MB", "12 MB",
 					"16 MB", "24 MB", "32 MB", "64 MB" };
+
+			ch341_sd_reg(io, 51, buf, 8); // SEND_SCR
+			if (io->verbose == 1) sd_print_reg("SCR", buf, 8);
+
+			DBG_LOG("physical layer version: ");
+			tmp = (buf[2] << 8 | buf[3]) & 0x87c0;
+			{
+				const char *s = NULL;
+				int sd_spec = buf[0] & 15;
+				int sd_specx = tmp >> 6 & 15;
+
+				if (!tmp) {
+					if (sd_spec == 0) s = "1.01";
+					else if (sd_spec == 1) s = "1.10";
+					else if (sd_spec == 2) s = "2.00";
+				} else if (sd_spec == 2 && (tmp & 0x8000)) {
+					if (tmp == 0x8000) s = "3.0X";
+					else { s = ""; DBG_LOG("%u.XX", 4 + sd_specx); }
+				}
+				if (s) DBG_LOG("%s\n", s);
+				else DBG_LOG("unknown (spec = %u, spec3 = %u, spec4 = %u, specx = %u)\n",
+						sd_spec, tmp >> 15, tmp >> 10 & 1, sd_specx);
+			}
 
 			ch341_sd_reg(io, 9, buf, 16); // SEND_CSD
 			if (io->verbose == 1) sd_print_reg("CSD", buf, 16);
