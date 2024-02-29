@@ -856,7 +856,7 @@ int main(int argc, char **argv) {
 			unsigned c_size, c_size_mult;
 			int i, ret; uint32_t tmp;
 			static const char * const sd_au_size[16] = {
-					"not defined", "16 KB", "32 KB", "64 KB"
+					"not defined", "16 KB", "32 KB", "64 KB",
 					"128 KB", "256 KB", "512 KB", "1 MB",
 					"2 MB", "4 MB", "8 MB", "12 MB",
 					"16 MB", "24 MB", "32 MB", "64 MB" };
