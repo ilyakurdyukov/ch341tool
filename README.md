@@ -61,3 +61,5 @@ These extra commands are for SD cards, which can be connected to the CH341 using
 
 - `sd_info`: print info about the SD card.
 
+References: [docs](https://www.sdcard.org/downloads/pls/), [arduino library](https://github.com/arduino-libraries/SD)
+

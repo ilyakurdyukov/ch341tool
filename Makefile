@@ -14,5 +14,5 @@ all: $(APPNAME)
 clean:
 	$(RM) $(APPNAME)
 
-$(APPNAME): $(APPNAME).c ch341a.h
-	$(CC) -s $(CFLAGS) -o $@ $^ $(LIBS)
+$(APPNAME): $(APPNAME).c ch341a.h sdcard.h
+	$(CC) -s $(CFLAGS) -o $@ $< $(LIBS)
