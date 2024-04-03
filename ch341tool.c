@@ -235,7 +235,7 @@ static int usb_send(usbio_t *io, const void *data, int len) {
 
 	if (!buf) buf = io->buf;
 	if (!len) ERR_EXIT("empty message\n");
-	if (io->verbose >= 2) {
+	if (io->verbose >= 3) {
 		DBG_LOG("send (%d):\n", len);
 		print_mem(stderr, buf, len);
 	}
@@ -292,7 +292,7 @@ static int usb_recv(usbio_t *io, int plen) {
 			if (len < 0)
 				ERR_EXIT("usb_recv failed, ret = %d\n", len);
 
-			if (io->verbose >= 2) {
+			if (io->verbose >= 3) {
 				DBG_LOG("recv (%d):\n", len);
 				print_mem(stderr, io->recv_buf, len);
 			}
@@ -337,6 +337,11 @@ static void ch341_spi_stream(usbio_t *io, const uint8_t *src, uint8_t *out, unsi
 			n = CH341_PACKET_LENGTH - 1;
 		len -= n;
 
+		if (io->verbose == 2) {
+			if (!src) memset(io->buf, 0xff, n);
+			DBG_LOG("send (%d):\n", n);
+			print_mem(stderr, src ? src : io->buf, n);
+		}
 		io->buf[0] = CH341A_CMD_SPI_STREAM;
 		for (i = 0; i < n; i++)
 			io->buf[1 + i] = src ? swap_bits(*src++) : 0xff;
@@ -345,8 +350,16 @@ static void ch341_spi_stream(usbio_t *io, const uint8_t *src, uint8_t *out, unsi
 		if (usb_recv(io, n) != n)
 			ERR_EXIT("unexpected recv size\n");
 
+		if (out)
 		for (i = 0; i < n; i++)
 			*out++ = swap_bits(io->buf[i]);
+		if (io->verbose == 2) {
+			if (!out)
+			for (i = 0; i < n; i++)
+				io->buf[i] = swap_bits(io->buf[i]);
+			DBG_LOG("recv (%d):\n", n);
+			print_mem(stderr, out ? out - n : io->buf, n);
+		}
 	}
 
 	io->buf[0] = CH341A_CMD_UIO_STREAM;
