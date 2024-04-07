@@ -71,7 +71,7 @@ References: [docs](https://www.sdcard.org/downloads/pls/), [arduino library](htt
 
 The commands below are only available if you clone [Arduino_MFRC522v2](https://github.com/OSSLibraries/Arduino_MFRC522v2) into the `Arduino/Arduino_MFRC522v2` directory, and build the tool with `MFRC522v2=1`.
 
-- `rc522_wait`: wait for the RFID card.
+- `rc522_wait N`: wait for the RFID card for N seconds.
 
 - `rc522_dump`: dump the RFID card.
 

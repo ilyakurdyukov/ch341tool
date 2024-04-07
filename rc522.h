@@ -15,7 +15,7 @@ enum {
 	rc522_FIFOLevelReg     = 0x0a,
 	rc522_BitFramingReg    = 0x0d,
 	// Communication
-  rc522_ModeReg          = 0x11,
+	rc522_ModeReg          = 0x11,
 	rc522_TxModeReg        = 0x12,
 	rc522_RxModeReg        = 0x13,
 	rc522_TxControlReg     = 0x14,
