@@ -555,6 +555,12 @@ static uint64_t str_to_size(const char *str) {
 	return n << shl;
 }
 
+static int ch2hex(unsigned a) {
+	const char *tab = "abcdef0123456789ABCDEF";
+	const char *p = strchr(tab, a);
+	return p ? (p - tab + 10) & 15 : -1;
+}
+
 #define REOPEN_FREQ 2
 
 int main(int argc, char **argv) {
@@ -747,14 +753,14 @@ int main(int argc, char **argv) {
 			int delim = 0;
 			if (argc <= 2) ERR_EXIT("bad command\n");
 			for (i = 0; i < 6; i++) {
-				int a;
-				key[i] = strtol(p, &p, 16);
-				a = *p++;
-				if (!a) break;
-				if (!delim) delim = a;
-				else if (a != delim) break;
+				int h = ch2hex(*p++), a;
+				if (h < 0 || (a = ch2hex(*p++)) < 0) break;
+				key[i] = h << 4 | a;
+				if (!i && ch2hex(*p) < 0) delim = *p;
+				if (i == 5) {	if (*p) break; }
+				else if (delim && *p++ != delim) break;
 			}
-			if (i != 5) ERR_EXIT("unexpected key format\n");
+			if (i != 6) ERR_EXIT("unexpected key format\n");
 			if (io->verbose >= 1)
 				DBG_LOG("mifare_key: %02x %02x %02x %02x %02x %02x\n",
 						key[0], key[1], key[2], key[3], key[4], key[5]);
