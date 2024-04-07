@@ -63,3 +63,21 @@ These extra commands are for SD cards, which can be connected to the CH341 using
 
 References: [docs](https://www.sdcard.org/downloads/pls/), [arduino library](https://github.com/arduino-libraries/SD)
 
+#### Commands (RC522 RFID module)
+
+- `rd522_init`: initialize the RFID module.
+
+- `rd522_test`: test the RFID module.
+
+The commands below are only available if you clone [Arduino_MFRC522v2](https://github.com/OSSLibraries/Arduino_MFRC522v2) into the `Arduino/Arduino_MFRC522v2` directory, and build the tool with `MFRC522v2=1`.
+
+- `rc522_wait`: wait for the RFID card.
+
+- `rc522_dump`: dump the RFID card.
+
+- `rc522_key`: set the key for Mifare Classic (6 hex bytes), for example `rc522_key ff-ff-ff-ff-ff-ff`.
+
+- `rc522_dump2`: dump the Mifare Classic card, using the key specified with `rc522_key`.
+
+References: [docs](https://www.nxp.com/docs/en/data-sheet/MFRC522.pdf), [arduino library](https://github.com/OSSLibraries/Arduino_MFRC522v2), [simple arduino library](https://github.com/miguelbalboa/rfid)
+

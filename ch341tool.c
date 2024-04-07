@@ -535,6 +535,7 @@ static void spi_erase(usbio_t *io, uint32_t addr, uint32_t len,
 }
 
 #include "sdcard.h"
+#include "rc522.h"
 
 static uint64_t str_to_size(const char *str) {
 	char *end; int shl = 0; uint64_t n;
@@ -622,6 +623,10 @@ int main(int argc, char **argv) {
 	io->verbose = verbose;
 
 	ch341_i2c_set(io, speed);
+
+#if ARDUINO_MFRC522v2
+	ch341_io = io;
+#endif
 
 	while (argc > 1) {
 		if (!strcmp(argv[1], "verbose")) {
@@ -727,6 +732,50 @@ int main(int argc, char **argv) {
 		} else if (!strcmp(argv[1], "sd_info")) {
 			sd_info(io);
 			argc -= 1; argv += 1;
+
+		} else if (!strcmp(argv[1], "rc522_init")) {
+			rc522_init(io);
+			argc -= 1; argv += 1;
+
+		} else if (!strcmp(argv[1], "rc522_test")) {
+			rc522_test(io);
+			argc -= 1; argv += 1;
+
+		} else if (!strcmp(argv[1], "rc522_key")) {
+			int i; uint8_t *key = rc522_mifare_key;
+			char *p = (char*)argv[2];
+			int delim = 0;
+			if (argc <= 2) ERR_EXIT("bad command\n");
+			for (i = 0; i < 6; i++) {
+				int a;
+				key[i] = strtol(p, &p, 16);
+				a = *p++;
+				if (!a) break;
+				if (!delim) delim = a;
+				else if (a != delim) break;
+			}
+			if (i != 5) ERR_EXIT("unexpected key format\n");
+			if (io->verbose >= 1)
+				DBG_LOG("mifare_key: %02x %02x %02x %02x %02x %02x\n",
+						key[0], key[1], key[2], key[3], key[4], key[5]);
+			argc -= 2; argv += 2;
+
+#if ARDUINO_MFRC522v2
+		} else if (!strcmp(argv[1], "rc522_wait")) {
+			int timeout; // in seconds
+			if (argc <= 2) ERR_EXIT("bad command\n");
+			timeout = atoi(argv[2]);
+			Arduino_rc522_wait(timeout);
+			argc -= 2; argv += 2;
+
+		} else if (!strcmp(argv[1], "rc522_dump")) {
+			Arduino_rc522_dump();
+			argc -= 1; argv += 1;
+
+		} else if (!strcmp(argv[1], "rc522_dump2")) {
+			Arduino_rc522_dump2(rc522_mifare_key);
+			argc -= 1; argv += 1;
+#endif
 
 		} else if (!strcmp(argv[1], "timeout")) {
 			if (argc <= 2) ERR_EXIT("bad command\n");
