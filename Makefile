@@ -39,6 +39,6 @@ endif
 clean:
 	$(RM) -r $(APPNAME) $(OBJDIR)
 
-$(APPNAME): $(APPNAME).c $(OBJS) ch341a.h sdcard.h rc522.h
+$(APPNAME): $(APPNAME).c $(OBJS) ch341a.h sdcard.h rc522.h pn532.h
 	$(CC) -s $(CFLAGS) $< $(OBJS) -o $@ $(LIBS)
 

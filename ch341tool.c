@@ -536,6 +536,7 @@ static void spi_erase(usbio_t *io, uint32_t addr, uint32_t len,
 
 #include "sdcard.h"
 #include "rc522.h"
+#include "pn532.h"
 
 static uint64_t str_to_size(const char *str) {
 	char *end; int shl = 0; uint64_t n;
@@ -757,7 +758,7 @@ int main(int argc, char **argv) {
 				if (h < 0 || (a = ch2hex(*p++)) < 0) break;
 				key[i] = h << 4 | a;
 				if (!i && ch2hex(*p) < 0) delim = *p;
-				if (i == 5) {	if (*p) break; }
+				if (i == 5) { if (*p) break; }
 				else if (delim && *p++ != delim) break;
 			}
 			if (i != 6) ERR_EXIT("unexpected key format\n");
@@ -782,6 +783,10 @@ int main(int argc, char **argv) {
 			Arduino_rc522_dump2(rc522_mifare_key);
 			argc -= 1; argv += 1;
 #endif
+
+		} else if (!strcmp(argv[1], "pn532_init")) {
+			pn532_init(io);
+			argc -= 1; argv += 1;
 
 		} else if (!strcmp(argv[1], "timeout")) {
 			if (argc <= 2) ERR_EXIT("bad command\n");

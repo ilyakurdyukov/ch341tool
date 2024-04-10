@@ -81,3 +81,9 @@ The commands below are only available if you clone [Arduino_MFRC522v2](https://g
 
 References: [docs](https://www.nxp.com/docs/en/data-sheet/MFRC522.pdf), [arduino library](https://github.com/OSSLibraries/Arduino_MFRC522v2), [simple arduino library](https://github.com/miguelbalboa/rfid)
 
+#### Commands (PN532 RFID module)
+
+- `pn532_init`: initialize the RFID module.
+
+References: [arduino library](https://github.com/Seeed-Studio/PN532)
+
